@@ -9,7 +9,7 @@ This is the [Coconut](https://github.com/asonnino/coconut) smart contract librar
 The Coconut cryptographic scheme is available [here](https://github.com/asonnino/coconut), and a link to the full paper is available [here](https://arxiv.org/abs/1802.07344).
 
 
-## Contributions
+## Contribute
 Feel free to send a PR if you wrote other Chainspace smart contracts based on Coconut!
 
 
