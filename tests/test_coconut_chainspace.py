@@ -15,46 +15,26 @@ import requests
 from petlib.bn import Bn
 # chainspace
 from chainspacecontract import transaction_to_solution
-from chainspacecontract.examples.coconut import contract as coconut_contract
-from chainspacecontract.examples import coconut
+from chainspacecontract.examples.coconut_chainspace import contract as coconut_contract
+from chainspacecontract.examples import coconut_chainspace
 # coconut
-from chainspacecontract.examples.coconut_util import pack, unpackG1, unpackG2
-from chainspacecontract.examples.coconut_lib import setup, elgamal_keygen, mix_ttp_th_keygen
-from chainspacecontract.examples.coconut_lib import elgamal_dec, aggregate_th_sign, randomize, sign, verify
+from chainspacecontract.examples.utils import *
+from coconut.utils import *
+from coconut.scheme import *
 
-# debug
-from chainspacecontract.examples.coconut_lib import verify, show_mix_sign, mix_verify, prepare_mix_sign, mix_sign
-from bplib.bp import BpGroup, G2Elem
-import time
+
 
 ####################################################################
 q = 5 # max number of messages
 t, n = 2, 3 # threshold and total numbero of authorities
 callback = 'hello.init' # id of the callback contract
 params = setup(q) # system's parameters
-clear_m = [1, 2] # messages for plaintext signature
-hidden_m = [3, 4, 5] # messages for blind signature
-(priv, pub) = elgamal_keygen(params) # user's key pair 
-(sk, vk, vvk) = mix_ttp_th_keygen(params, t, n, q) # signers keys
+public_m = [1, 2] # messages for plaintext signature
+private_m = [3, 4, 5] # messages for blind signature
+(d, gamma) = elgamal_keygen(params) # user's key pair 
+(sk, vk) = ttp_keygen(params, t, n, q) # signers keys
+aggr_vk = aggregate_vk(params, vk, threshold=True)
 
-# some crypto
-# ------------------------------------
-packed_vvk = (pack(vvk[0]),pack(vvk[1]),[pack(vvk[2][i]) for i in range(q)])
-instance = {
-    'type' : 'CoCoInstance',
-    'q' : q,
-    't' : t,
-    'n' : n,
-    'callback' : callback,
-    'verifier' : packed_vvk
-}
-hasher = sha256()
-hasher.update(dumps(instance).encode('utf8'))
-m = Bn.from_binary(hasher.digest())
-sigs = [mix_sign(params, ski, None, [], [m]) for ski in sk]
-sig = aggregate_th_sign(params, sigs)
-#print(mix_verify(params, vvk, None, sig, None, [m]))
-# ------------------------------------
 
 
 class Test(unittest.TestCase):
@@ -62,33 +42,9 @@ class Test(unittest.TestCase):
     # test init
     # --------------------------------------------------------------
     def test_init(self):
-
-        checker_service_process = Process(target=coconut_contract.run_checker_service)
-        checker_service_process.start()
-        time.sleep(0.1)
-
-        try:
-
-            ## create transaction
-            transaction = coconut.init()
-
-            ## submit transaction
-            response = requests.post(
-                'http://127.0.0.1:5000/' + coconut_contract.contract_name 
-                + '/init', json=transaction_to_solution(transaction)
-            )
-            self.assertTrue(response.json()['success'])
-
-        finally:
-            ## stop service
-            checker_service_process.terminate()
-            checker_service_process.join()
-
-    def test_context(self):
-
         with coconut_contract.test_service():
             ## create transaction
-            transaction = coconut.init()
+            transaction = coconut_chainspace.init()
 
             ## submit transaction
             response = requests.post(
@@ -96,21 +52,18 @@ class Test(unittest.TestCase):
                 + '/init', json=transaction_to_solution(transaction)
             )
             self.assertTrue(response.json()['success'])
-
-
 
     # --------------------------------------------------------------
     # test create instance
     # --------------------------------------------------------------
     def test_create(self):
         with coconut_contract.test_service():
-
             ## create transaction
             # init
-            init_transaction = coconut.init()
+            init_transaction = coconut_chainspace.init()
             token = init_transaction['transaction']['outputs'][0]
             # create instance
-            transaction = coconut.create(
+            transaction = coconut_chainspace.create(
                 (token,),
                 None,
                 None,
@@ -118,8 +71,7 @@ class Test(unittest.TestCase):
                 t,
                 n,
                 callback, 
-                vvk,
-                sig
+                aggr_vk,
             )
 
             ## submit transaction
@@ -134,13 +86,12 @@ class Test(unittest.TestCase):
     # --------------------------------------------------------------
     def test_request(self):
         with coconut_contract.test_service():
-
             ## create transactions
             # init
-            init_transaction = coconut.init()
+            init_transaction = coconut_chainspace.init()
             token = init_transaction['transaction']['outputs'][0]
             # create instance
-            create_transaction = coconut.create(
+            create_transaction = coconut_chainspace.create(
                 (token,),
                 None,
                 None,
@@ -148,18 +99,17 @@ class Test(unittest.TestCase):
                 t,
                 n,
                 callback, 
-                vvk,
-                sig
+                aggr_vk,
             )
             instance = create_transaction['transaction']['outputs'][1]
             # request
-            transaction = coconut.request(
+            transaction = coconut_chainspace.request(
                 (instance,),
                 None,
                 None,
-                clear_m, 
-                hidden_m, 
-                pub
+                public_m, 
+                private_m, 
+                gamma
             )
 
             ## submit transaction
@@ -174,13 +124,12 @@ class Test(unittest.TestCase):
     # --------------------------------------------------------------
     def test_issue(self):
         with coconut_contract.test_service():
-
             ## create transactions
             # init
-            init_transaction = coconut.init()
+            init_transaction = coconut_chainspace.init()
             token = init_transaction['transaction']['outputs'][0]
             # create instance
-            create_transaction = coconut.create(
+            create_transaction = coconut_chainspace.create(
                 (token,),
                 None,
                 None,
@@ -188,23 +137,22 @@ class Test(unittest.TestCase):
                 t,
                 n,
                 callback, 
-                vvk,
-                sig
+                aggr_vk,
             )
             instance = create_transaction['transaction']['outputs'][1]
             # request
-            request_transaction = coconut.request(
+            request_transaction = coconut_chainspace.request(
                 (instance,),
                 None,
                 None,
-                clear_m, 
-                hidden_m, 
-                pub
+                public_m, 
+                private_m, 
+                gamma
             )
             old_request = request_transaction['transaction']['outputs'][1]
 
             # issue a signatures
-            transaction = coconut.issue(
+            transaction = coconut_chainspace.issue(
                 (old_request,),
                 None,
                 None,
@@ -222,7 +170,7 @@ class Test(unittest.TestCase):
 
             # issue the other t-1 signatures
             for i in range(1,t):
-                transaction = coconut.issue(
+                transaction = coconut_chainspace.issue(
                     (old_request,),
                     None,
                     None,
@@ -235,14 +183,14 @@ class Test(unittest.TestCase):
             # ------------------------------------
             packet = loads(old_request)['sigs']
             (indexes, packed_enc_sigs) = zip(*packet)
-            (h, packed_enc_epsilon) = zip(*packed_enc_sigs)
-            enc_epsilon = [(unpackG1(params,x[0]), unpackG1(params,x[1])) for x in packed_enc_epsilon]
-            dec_sigs = [(unpackG1(params,h[0]), elgamal_dec(params, priv, enc)) for enc in enc_epsilon]
-            aggr = aggregate_th_sign(params, dec_sigs)
-            aggr = randomize(params, aggr)
-            (kappa, proof_v) = show_mix_sign(params, vvk, hidden_m)
+            (h, packed_enc_s) = zip(*packed_enc_sigs)
+            enc_s = [(unpackG1(params,x[0]), unpackG1(params,x[1])) for x in packed_enc_s]
+            dec_sigs = [(unpackG1(params,h[0]), elgamal_dec(params, d, enc)) for enc in enc_s]
+            aggr_sigma = aggregate_sigma(params, dec_sigs)
+            aggr_sigma = randomize(params, aggr_sigma)
+            (kappa, nu, pi_v) = show_blind_sign(params, aggr_vk, aggr_sigma, private_m)
             print("\n\n=================== VERIFICATION ===================\n")
-            print(mix_verify(params, vvk, kappa, aggr, proof_v, clear_m))
+            print(blind_verify(params, aggr_vk, aggr_sigma, kappa, nu, pi_v, public_m=public_m))
             print("\n====================================================\n\n")
             # ------------------------------------
 
@@ -251,13 +199,12 @@ class Test(unittest.TestCase):
     # --------------------------------------------------------------
     def test_verify(self):
         with coconut_contract.test_service():
-
             ## create transactions
             # init
-            init_transaction = coconut.init()
+            init_transaction = coconut_chainspace.init()
             token = init_transaction['transaction']['outputs'][0]
             # create instance
-            create_transaction = coconut.create(
+            create_transaction = coconut_chainspace.create(
                 (token,),
                 None,
                 None,
@@ -265,24 +212,40 @@ class Test(unittest.TestCase):
                 t,
                 n,
                 callback, 
-                vvk,
-                sig
+                aggr_vk,
             )
             instance = create_transaction['transaction']['outputs'][1]
             # request
-            request_transaction = coconut.request(
+            request_transaction = coconut_chainspace.request(
                 (instance,),
                 None,
                 None,
-                clear_m, 
-                hidden_m, 
-                pub
+                public_m, 
+                private_m, 
+                gamma
             )
             old_request = request_transaction['transaction']['outputs'][1]
 
-            # issue t signatures
-            for i in range(t):
-                transaction = coconut.issue(
+            # issue a signatures
+            transaction = coconut_chainspace.issue(
+                (old_request,),
+                None,
+                None,
+                sk[0],
+                0
+            )
+            old_request = transaction['transaction']['outputs'][0]
+
+            ## submit transaction
+            response = requests.post(
+                'http://127.0.0.1:5000/' + coconut_contract.contract_name 
+                + '/issue', json=transaction_to_solution(transaction)
+            )
+            self.assertTrue(response.json()['success'])
+
+            # issue the other t-1 signatures
+            for i in range(1,t):
+                transaction = coconut_chainspace.issue(
                     (old_request,),
                     None,
                     None,
@@ -291,28 +254,26 @@ class Test(unittest.TestCase):
                 )
                 old_request = transaction['transaction']['outputs'][0]
 
-            # some crypto
+            # some crypto - to show that this actually works
             # ------------------------------------
             packet = loads(old_request)['sigs']
             (indexes, packed_enc_sigs) = zip(*packet)
-            (h, packed_enc_epsilon) = zip(*packed_enc_sigs)
-            enc_epsilon = [(unpackG1(params,x[0]), unpackG1(params,x[1])) for x in packed_enc_epsilon]
-            dec_sigs = [(unpackG1(params,h[0]), elgamal_dec(params, priv, enc)) for enc in enc_epsilon]
-            aggr = aggregate_th_sign(params, dec_sigs)
-            aggr = randomize(params, aggr)
-            packed_sig = (pack(aggr[0]),pack(aggr[1]))
+            (h, packed_enc_s) = zip(*packed_enc_sigs)
+            enc_s = [(unpackG1(params,x[0]), unpackG1(params,x[1])) for x in packed_enc_s]
+            dec_sigs = [(unpackG1(params,h[0]), elgamal_dec(params, d, enc)) for enc in enc_s]
+            aggr_sigma = aggregate_sigma(params, dec_sigs)
+            aggr_sigma = randomize(params, aggr_sigma)
+            packed_sig = (pack(aggr_sigma[0]),pack(aggr_sigma[1]))
             # ------------------------------------
 
             # verify signature
-            start_time = time.time()
-            transaction = coconut.verify(
+            transaction = coconut_chainspace.verify(
                 None,
                 (instance,),
                 (packed_sig,),
-                clear_m,
-                hidden_m
+                public_m,
+                private_m
             )
-            end_time = time.time(); print((end_time-start_time)*1000)
 
             ## submit t ransaction
             response = requests.post(
@@ -324,7 +285,7 @@ class Test(unittest.TestCase):
             print("\n\n=================== VERIFICATION ===================\n")
             print(transaction['transaction']['returns'][0])
             print("\n====================================================\n\n")
-
+    
 
 ####################################################################
 # main
