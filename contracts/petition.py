@@ -10,17 +10,15 @@
 from hashlib import sha256
 from json    import dumps, loads
 # petlib
-from chainspacecontract.examples.utils import setup as pet_setup
 from petlib.ecdsa import do_ecdsa_sign, do_ecdsa_verify
 # coconut
-from chainspacecontract.examples.coconut_util import pet_pack, pet_unpack, pack, unpackG1, unpackG2
-from chainspacecontract.examples.coconut_lib import setup as bp_setup
-from chainspacecontract.examples.coconut_lib import show_coconut_petition, coconut_petition_verify
+from chainspacecontract.examples.utils import *
+from chainspacecontract.examples.petition_proofs import *
+from coconut.utils import *
+from coconut.scheme import *
+
 # chainspace
 from chainspacecontract import ChainspaceContract
-
-# debug
-import time
 
 ## contract name
 contract = ChainspaceContract('petition')
@@ -42,19 +40,19 @@ def init():
 # create petition
 # ------------------------------------------------------------------
 @contract.method('create_petition')
-def create_petition(inputs, reference_inputs, parameters, UUID, options, priv_owner, pub_owner, vvk):
+def create_petition(inputs, reference_inputs, parameters, UUID, options, priv_owner, pub_owner, aggr_vk):
     # inital score
     scores = [0 for _ in options]
 
     # pack vvk
-    packed_vvk = (pack(vvk[0]),pack(vvk[1]),pack(vvk[2]))
+    packed_vk = pack_vk(aggr_vk)
 
     # new petition object
     new_petition = {
         'type' : 'PObject',
         'UUID' : pet_pack(UUID), # unique ID of the petition
         'owner' : pet_pack(pub_owner), # entity creating the petition
-        'verifier' : packed_vvk, # entity delivering credentials to participate to the petition
+        'verifier' : packed_vk, # entity delivering credentials to participate to the petition
         'options' : options, # the options to sign
         'scores' : scores # the signatures per option
     }
@@ -81,35 +79,35 @@ def create_petition(inputs, reference_inputs, parameters, UUID, options, priv_ow
 # sign
 # ------------------------------------------------------------------
 @contract.method('sign')
-def sign(inputs, reference_inputs, parameters, priv_signer, sig, vvk):
-	# ini petition, list and parameters
-	old_petition = loads(inputs[0])
-	new_petition = loads(inputs[0])
-	old_list = loads(inputs[1])
-	new_list = loads(inputs[1])
-	new_values = loads(parameters[0])
+def sign(inputs, reference_inputs, parameters, priv_signer, sig, aggr_vk):
+    # ini petition, list and parameters
+    old_petition = loads(inputs[0])
+    new_petition = loads(inputs[0])
+    old_list = loads(inputs[1])
+    new_list = loads(inputs[1])
+    new_values = loads(parameters[0])
 
-	# update petition values
-	for i in range(0,len(new_values)):
-		new_petition['scores'][i] = old_petition['scores'][i] + new_values[i]
+    # update petition values
+    for i in range(0,len(new_values)):
+        new_petition['scores'][i] = old_petition['scores'][i] + new_values[i]
 
-	# prepare showing of credentials
-	UUID = pet_unpack(old_petition['UUID'])
-	bp_params = bp_setup()
-	(kappa, nu, proof_v) = show_coconut_petition(bp_params, vvk, priv_signer, UUID)
-	#print(coconut_petition_verify(bp_params, vvk, kappa, sig, proof_v, UUID, nu))
+    # prepare showing of credentials
+    UUID = pet_unpack(old_petition['UUID'])
+    bp_params = setup()
+    (kappa, nu, zeta, pi_petition) = make_proof_petition(bp_params, aggr_vk, sig, [priv_signer], UUID)
+    #assert verify_proof_petition(bp_params, aggr_vk, sig, kappa, nu, zeta, pi_petition, UUID)
 
-	# update spent list
-	new_list['list'].append(pack(nu))
+    # update spent list
+    new_list['list'].append(pack(zeta))
 
-	# pack sig
-	packed_sig = (pack(sig[0]),pack(sig[1]))
+    # pack sig
+    packed_sig = (pack(sig[0]),pack(sig[1]))
 
-	# return
-	return {
-		'outputs': (dumps(new_petition),dumps(new_list)),
-		'extra_parameters' : (packed_sig, pack(kappa), pack(nu), pet_pack(proof_v))
-	}
+    # return
+    return {
+        'outputs': (dumps(new_petition),dumps(new_list)),
+        'extra_parameters' : (packed_sig, pack(kappa), pack(nu), pack(zeta), pet_pack(pi_petition))
+    }
 
 
 
@@ -170,6 +168,7 @@ def create_petition_checker(inputs, reference_inputs, parameters, outputs, retur
 @contract.checker('sign')
 def sign_checker(inputs, reference_inputs, parameters, outputs, returns, dependencies):
     try:
+        
         # retrieve petition
         old_petition = loads(inputs[0])
         new_petition = loads(outputs[0])
@@ -177,14 +176,15 @@ def sign_checker(inputs, reference_inputs, parameters, outputs, returns, depende
         old_list = loads(inputs[1])
         new_list = loads(outputs[1])
         # retrieve parameters
-        bp_params = bp_setup()
+        bp_params = setup()
         new_values = loads(parameters[0])
         packed_sig = parameters[1]
         sig = (unpackG1(bp_params, packed_sig[0]), unpackG1(bp_params, packed_sig[1]))
         kappa = unpackG2(bp_params, parameters[2])
         nu = unpackG1(bp_params, parameters[3])
-        proof_v = pet_unpack(parameters[4])
-
+        zeta = unpackG1(bp_params, parameters[4])
+        pi_petition = pet_unpack(parameters[5])
+        
         # check format
         if len(inputs) != 2 or len(reference_inputs) != 0 or len(outputs) != 2 or len(returns) != 0:
             return False 
@@ -195,7 +195,7 @@ def sign_checker(inputs, reference_inputs, parameters, outputs, returns, depende
         # check format & consistency with old object
         UUID = pet_unpack(new_petition['UUID'])
         options = new_petition['options']
-        packed_vvk = new_petition['verifier']
+        packed_vk = new_petition['verifier']
         scores = new_petition['scores']
         if old_petition['UUID'] != new_petition['UUID']: return False
         if len(old_petition['owner']) != len(new_petition['owner']): return False
@@ -209,13 +209,14 @@ def sign_checker(inputs, reference_inputs, parameters, outputs, returns, depende
             if new_values[i] != 0 and new_values[i] != 1: return False
 
         # check spent list
-        packed_nu = parameters[3]
-        if (packed_nu in old_list['list']) or (new_list['list'] != old_list['list'] + [packed_nu]):
+        packed_zeta = parameters[4]
+        if (packed_zeta in old_list['list']) or (new_list['list'] != old_list['list'] + [packed_zeta]):
             return False
+        
 
-        # verify signature and nu's correctness
-        vvk = (unpackG2(bp_params,packed_vvk[0]), unpackG2(bp_params,packed_vvk[1]), unpackG2(bp_params,packed_vvk[2]))
-        if not coconut_petition_verify(bp_params, vvk, kappa, sig, proof_v, UUID, nu): return False
+        # verify signature
+        aggr_vk = unpack_vk(bp_params, packed_vk)
+        if not verify_proof_petition(bp_params, aggr_vk, sig, kappa, nu, zeta, pi_petition, UUID): return False
   
         # otherwise
         return True
