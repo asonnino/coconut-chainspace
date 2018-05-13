@@ -26,20 +26,19 @@ from coconut.scheme import *
 # authenticated bank transfer
 ####################################################################
 ## petition parameters
-UUID = Bn(1234)
-options = ['YES', 'NO']
+UUID = Bn(1234) # petition unique id (needed for crypto)
+options = ['YES', 'NO'] # options 
 pet_params = pet_setup()
 (G, g, hs, o) = pet_params
-priv_owner = o.random()
-pub_owner = priv_owner*g
+priv_owner = o.random() # should be threshold
+pub_owner = priv_owner*g # should be threshold
 
-## authorities parameters
-# coconut parameters
+## coconut parameters
 t, n = 4, 5 # threshold and total numbero of authorities
 bp_params = setup() # bp system's parameters
 (sk, vk) = ttp_keygen(bp_params, t, n, 1) # signers keys
 aggr_vk = aggregate_vk(bp_params, vk, threshold=True)
-# vote parameters
+
 
 
 class Test(unittest.TestCase):
