@@ -79,7 +79,7 @@ def create_petition(inputs, reference_inputs, parameters, UUID, options, priv_ow
 # ------------------------------------------------------------------
 @contract.method('sign')
 def sign(inputs, reference_inputs, parameters, priv_signer, sig, aggr_vk, vote):
-    # ini petition, list and parameters
+    # get petition and list 
     old_petition = loads(inputs[0])
     new_petition = loads(inputs[0])
     old_list = loads(inputs[1])
@@ -114,6 +114,34 @@ def sign(inputs, reference_inputs, parameters, priv_signer, sig, aggr_vk, vote):
             pack(enc_v), pack(cv), pack(pi_vote))
     }
 
+# ------------------------------------------------------------------
+# tally
+# ------------------------------------------------------------------
+@contract.method('tally')
+def tally(inputs, reference_inputs, parameters, tally_priv, tally_pub):
+    # load petition & scores
+    petition = loads(inputs[0])
+    enc_results = [unpack(petition['scores'][0]), unpack(petition['scores'][1])]
+
+    # decrypt results
+    (G, g, hs, o) = pet_setup()
+    table = {}
+    for i in range(-1000, 1000): table[i * hs[0]] = i
+    outcome = []
+    for (a, b) in enc_results:
+        plain = b + (-tally_priv * a)
+        outcome.append(table[plain])
+
+    # pack result
+    result = {
+        'type' : 'PTally',
+        'outcome' : outcome
+    }
+    
+    # return
+    return {
+        'outputs': (dumps(result),),
+    }
 
 
 ####################################################################
@@ -170,12 +198,11 @@ def create_petition_checker(inputs, reference_inputs, parameters, outputs, retur
 
 
 # ------------------------------------------------------------------
-# check add score
+# check sign
 # ------------------------------------------------------------------
 @contract.checker('sign')
 def sign_checker(inputs, reference_inputs, parameters, outputs, returns, dependencies):
     try:
-        
         # retrieve petition
         old_petition = loads(inputs[0])
         new_petition = loads(outputs[0])
@@ -237,6 +264,31 @@ def sign_checker(inputs, reference_inputs, parameters, outputs, returns, depende
         if not verify_proof_credentials_petition(bp_params, aggr_vk, sig, kappa, nu, zeta, pi_petition, UUID): 
             return False
   
+        # otherwise
+        return True
+
+    except (KeyError, Exception): 
+        return False
+
+# ------------------------------------------------------------------
+# check tally
+# ------------------------------------------------------------------
+@contract.checker('tally')
+def tally_checker(inputs, reference_inputs, parameters, outputs, returns, dependencies):
+    try:
+        petition = loads(inputs[0])
+        result = loads(outputs[0])
+
+        # check format
+        if len(inputs) != 1 or len(reference_inputs) != 0 or len(outputs) != 1 or len(returns) != 0:
+            return False 
+
+        # check types
+        if petition['type'] != 'PObject' or result['type'] != 'PTally': return False  
+
+        # check fields
+        result['outcome']
+
         # otherwise
         return True
 
