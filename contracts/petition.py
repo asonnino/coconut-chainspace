@@ -106,15 +106,11 @@ def sign(inputs, reference_inputs, parameters, priv_signer, sig, aggr_vk, vote):
     new_enc_v = (old_enc_v[0] + enc_v[0], old_enc_v[1] + enc_v[1])
     new_enc_v_not = (old_enc_v_not[0] + enc_v_not[0], old_enc_v_not[1] + enc_v_not[1])
     new_petition['scores'] = [pack(new_enc_v), pack(new_enc_v_not)]
-    
-    # pack 
-    #packed_sig = (pack(sig[0]),pack(sig[1]))
-    packed_sig = pack(sig)
 
     # return
     return {
         'outputs': (dumps(new_petition),dumps(new_list)),
-        'extra_parameters' : (packed_sig, pack(kappa), pack(nu), pack(zeta), pack(pi_petition), 
+        'extra_parameters' : (pack(sig), pack(kappa), pack(nu), pack(zeta), pack(pi_petition), 
             pack(enc_v), pack(cv), pack(pi_vote))
     }
 
@@ -188,9 +184,7 @@ def sign_checker(inputs, reference_inputs, parameters, outputs, returns, depende
         new_list = loads(outputs[1])
         # retrieve parameters
         bp_params = setup()
-        packed_sig = parameters[0]
-        #sig = (unpackG1(bp_params, packed_sig[0]), unpackG1(bp_params, packed_sig[1]))]
-        sig = unpack(packed_sig)
+        sig = unpack(parameters[0])
         kappa = unpack(parameters[1])
         nu = unpack(parameters[2])
         zeta = unpack(parameters[3])
