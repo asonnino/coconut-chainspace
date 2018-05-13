@@ -12,7 +12,7 @@ The Coconut cryptographic scheme is available [here](https://github.com/asonnino
 ## Test
 Tests can be run as follows:
 ```
-$ pytest -v --cov=coconut tests/
+$ pytest -v tests/
 ```
 
 
