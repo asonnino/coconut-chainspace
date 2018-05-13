@@ -52,7 +52,7 @@ def create_petition(inputs, reference_inputs, parameters, UUID, options, priv_ow
         'type' : 'PObject',
         'UUID' : pack(UUID), # unique ID of the petition
         'owner' : pack(pub_owner), # entity creating the petition
-        'verifier' : pack_vk(aggr_vk), # entity delivering credentials to participate to the petition
+        'verifier' : pack(aggr_vk), # entity delivering credentials to participate to the petition
         'options' : options, # the options
         'scores' : scores # the signatures per option
     }
