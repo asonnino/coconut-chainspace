@@ -52,7 +52,7 @@ def create(inputs, reference_inputs, parameters, q, t, n, callback, aggr_vk):
         't' : t,
         'n' : n,
         'callback' : callback,
-        'verifier' : pack_vk(aggr_vk)
+        'verifier' : pack(aggr_vk)
     }
 
     ## should create a signature over 'instance'
@@ -78,11 +78,11 @@ def request(inputs, reference_inputs, parameters, public_m, private_m, gamma, *a
     request = {
         'type' : 'CoCoRequest',
         'instance' : loads(inputs[0]),
-        'public_m' : pet_pack(public_m),
+        'public_m' : pack(public_m),
         'cm' : pack(cm),
-        'c' : [(pack(ci[0]), pack(ci[1])) for ci in c],
+        'c' : [pack(ci) for ci in c],
         'sigs' : [],
-        'pi_s' : pet_pack(pi_s),
+        'pi_s' : pack(pi_s),
         'gamma' : pack(gamma)
     }
 
@@ -107,24 +107,24 @@ def issue(inputs, reference_inputs, parameters, sk, index):
     instance = request['instance']
     q = instance['q']
     params = setup(q)
-    cm = unpackG1(params, request['cm'])
-    c = [(unpackG1(params, packed_ci[0]), unpackG1(params, packed_ci[1])) for packed_ci in request['c']]
-    public_m = pet_unpack(request['public_m'])
-    pi_s = pet_unpack(request['pi_s'])
-    gamma = unpackG1(params, request['gamma'])
+    cm = unpack(request['cm'])
+    c = [unpack(packed_ci) for packed_ci in request['c']]
+    public_m = unpack(request['public_m'])
+    pi_s = unpack(request['pi_s'])
+    gamma = unpack(request['gamma'])
 
     # sign
-    (h, enc_s) = blind_sign(params, sk, cm, c, gamma, pi_s, public_m=public_m)
-    packed_enc_sig = (pack(h), (pack(enc_s[0]), pack(enc_s[1])))
+    sigma_tilde = blind_sign(params, sk, cm, c, gamma, pi_s, public_m=public_m)
 
     # update request
     # NOTE: indexes are used to re-order the signature for threshold aggregation
-    updated_request['sigs'].append((index, packed_enc_sig))
+    packet = (index, pack(sigma_tilde))
+    updated_request['sigs'].append(packet)
 
     # return
     return {
         'outputs': (dumps(updated_request),),
-        'extra_parameters' : ((index, packed_enc_sig),)
+        'extra_parameters' : (packet,)
     }
 
 
@@ -138,16 +138,14 @@ def verify(inputs, reference_inputs, parameters, public_m, private_m):
 
     # build proof
     params = setup(instance['q'])
-    packed_vvk = instance['verifier']
-    aggr_vk = unpack_vk(params, packed_vvk)
-    packed_sig = parameters[0]
-    sig = (unpackG1(params,packed_sig[0]), unpackG1(params,packed_sig[1]))
+    aggr_vk = unpack(instance['verifier'])
+    sig = unpack(parameters[0])
     (kappa, nu, pi_v) = show_blind_sign(params, aggr_vk, sig, private_m)
 
     # returns
     return {
         'returns': (dumps(True),),
-        'extra_parameters' : (dumps(public_m), pack(kappa), pack(nu), pet_pack(pi_v))
+        'extra_parameters' : (dumps(public_m), pack(kappa), pack(nu), pack(pi_v))
     }
 
 
@@ -205,15 +203,14 @@ def request_checker(inputs, reference_inputs, parameters, outputs, returns, depe
         # check fields
         request['public_m']
         params = setup(instance['q'])
-        cm = unpackG1(params, request['cm'])
-        packed_c = request['c']
-        c = [(unpackG1(params, ci[0]), unpackG1(params, ci[1])) for ci in packed_c]
+        cm = unpack(request['cm'])
+        c = [unpack(ci) for ci in request['c']]
         if inputs[0] != outputs[0] or loads(inputs[0]) != request['instance']: return False
         if request['sigs']: return False
         
         # optional: verify proof (could be done locally by each signer)
-        pi_s = pet_unpack(request['pi_s'])
-        gamma = unpackG1(params, request['gamma'])
+        pi_s = unpack(request['pi_s'])
+        gamma = unpack(request['gamma'])
         if not verify_pi_s(params, gamma, c, cm, pi_s): return False
 
         # verify depend transaction -- specified by 'callback'
@@ -276,13 +273,12 @@ def verify_checker(inputs, reference_inputs, parameters, outputs, returns, depen
         # verify signature
         params = setup(instance['q'])
         packed_sig = parameters[0]
-        sig = (unpackG1(params,packed_sig[0]),unpackG1(params,packed_sig[1]))
+        sig = unpack(parameters[0])
         public_m = loads(parameters[1])
-        kappa = unpackG2(params,parameters[2])
-        nu = unpackG1(params,parameters[3])
-        pi_v = pet_unpack(parameters[4])
-        packed_vvk = instance['verifier']
-        aggr_vk = unpack_vk(params, packed_vvk)
+        kappa = unpack(parameters[2])
+        nu = unpack(parameters[3])
+        pi_v = unpack(parameters[4])
+        aggr_vk = unpack(instance['verifier'])
         if not blind_verify(params, aggr_vk, sig, kappa, nu, pi_v, public_m=public_m): return False
 
         # otherwise

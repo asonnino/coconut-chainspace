@@ -182,10 +182,10 @@ class Test(unittest.TestCase):
             # some crypto - to show that this actually works
             # ------------------------------------
             packet = loads(old_request)['sigs']
-            (indexes, packed_enc_sigs) = zip(*packet)
-            (h, packed_enc_s) = zip(*packed_enc_sigs)
-            enc_s = [(unpackG1(params,x[0]), unpackG1(params,x[1])) for x in packed_enc_s]
-            dec_sigs = [(unpackG1(params,h[0]), elgamal_dec(params, d, enc)) for enc in enc_s]
+            (indexes, packed_sigma_tilde) = zip(*packet)
+            sigma_tilde = [unpack(x) for x in packed_sigma_tilde]
+            (h, enc_s) = zip(*sigma_tilde)
+            dec_sigs = [(h[0], elgamal_dec(params, d, enc)) for enc in enc_s]
             aggr_sigma = aggregate_sigma(params, dec_sigs)
             aggr_sigma = randomize(params, aggr_sigma)
             (kappa, nu, pi_v) = show_blind_sign(params, aggr_vk, aggr_sigma, private_m)
@@ -257,20 +257,19 @@ class Test(unittest.TestCase):
             # some crypto - to show that this actually works
             # ------------------------------------
             packet = loads(old_request)['sigs']
-            (indexes, packed_enc_sigs) = zip(*packet)
-            (h, packed_enc_s) = zip(*packed_enc_sigs)
-            enc_s = [(unpackG1(params,x[0]), unpackG1(params,x[1])) for x in packed_enc_s]
-            dec_sigs = [(unpackG1(params,h[0]), elgamal_dec(params, d, enc)) for enc in enc_s]
+            (indexes, packed_sigma_tilde) = zip(*packet)
+            sigma_tilde = [unpack(x) for x in packed_sigma_tilde]
+            (h, enc_s) = zip(*sigma_tilde)
+            dec_sigs = [(h[0], elgamal_dec(params, d, enc)) for enc in enc_s]
             aggr_sigma = aggregate_sigma(params, dec_sigs)
             aggr_sigma = randomize(params, aggr_sigma)
-            packed_sig = (pack(aggr_sigma[0]),pack(aggr_sigma[1]))
             # ------------------------------------
 
             # verify signature
             transaction = coconut_chainspace.verify(
                 None,
                 (instance,),
-                (packed_sig,),
+                (pack(aggr_sigma),),
                 public_m,
                 private_m
             )
