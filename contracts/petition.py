@@ -42,17 +42,17 @@ def init():
 @contract.method('create_petition')
 def create_petition(inputs, reference_inputs, parameters, UUID, options, priv_owner, pub_owner, aggr_vk):
     # inital score
-    scores = [0 for _ in options]
-
-    # pack vvk
-    packed_vk = pack_vk(aggr_vk)
+    pet_params = pet_setup()
+    (G, g, hs, o) = pet_params
+    zero = (G.infinite(), G.infinite())
+    scores = [pet_pack(zero), pet_pack(zero)]
 
     # new petition object
     new_petition = {
         'type' : 'PObject',
         'UUID' : pet_pack(UUID), # unique ID of the petition
         'owner' : pet_pack(pub_owner), # entity creating the petition
-        'verifier' : packed_vk, # entity delivering credentials to participate to the petition
+        'verifier' : pack_vk(aggr_vk), # entity delivering credentials to participate to the petition
         'options' : options, # the options to sign
         'scores' : scores # the signatures per option
     }
@@ -64,7 +64,6 @@ def create_petition(inputs, reference_inputs, parameters, UUID, options, priv_ow
     }
 
     # signature
-    pet_params = pet_setup()
     hasher = sha256()
     hasher.update(dumps(new_petition).encode('utf8'))
     sig = do_ecdsa_sign(pet_params[0], priv_owner, hasher.digest())
@@ -79,34 +78,43 @@ def create_petition(inputs, reference_inputs, parameters, UUID, options, priv_ow
 # sign
 # ------------------------------------------------------------------
 @contract.method('sign')
-def sign(inputs, reference_inputs, parameters, priv_signer, sig, aggr_vk):
+def sign(inputs, reference_inputs, parameters, priv_signer, sig, aggr_vk, vote):
     # ini petition, list and parameters
     old_petition = loads(inputs[0])
     new_petition = loads(inputs[0])
     old_list = loads(inputs[1])
     new_list = loads(inputs[1])
-    new_values = loads(parameters[0])
-
-    # update petition values
-    for i in range(0,len(new_values)):
-        new_petition['scores'][i] = old_petition['scores'][i] + new_values[i]
 
     # prepare showing of credentials
     UUID = pet_unpack(old_petition['UUID'])
     bp_params = setup()
-    (kappa, nu, zeta, pi_petition) = make_proof_petition(bp_params, aggr_vk, sig, [priv_signer], UUID)
-    #assert verify_proof_petition(bp_params, aggr_vk, sig, kappa, nu, zeta, pi_petition, UUID)
+    (kappa, nu, zeta, pi_petition) = make_proof_credentials_petition(bp_params, aggr_vk, sig, [priv_signer], UUID)
+    #assert verify_proof_credentials_petition(bp_params, aggr_vk, sig, kappa, nu, zeta, pi_petition, UUID)
 
     # update spent list
     new_list['list'].append(pack(zeta))
 
-    # pack sig
+    # encrypt the votes 
+    pub_owner = pet_unpack(old_petition['owner'])
+    pet_params = pet_setup()
+    (enc_v, enc_v_not, cv, pi_vote) = make_proof_vote_petition(pet_params, pub_owner, vote) 
+    #assert verify_proof_vote_petition(pet_params, enc_v, pub_owner, cv, pi_vote)
+
+    # update petition values
+    old_enc_v = pet_unpack(old_petition['scores'][0])
+    old_enc_v_not = pet_unpack(old_petition['scores'][1])
+    new_enc_v = (old_enc_v[0] + enc_v[0], old_enc_v[1] + enc_v[1])
+    new_enc_v_not = (old_enc_v_not[0] + enc_v_not[0], old_enc_v_not[1] + enc_v_not[1])
+    new_petition['scores'] = [pet_pack(new_enc_v), pet_pack(new_enc_v_not)]
+    
+    # pack 
     packed_sig = (pack(sig[0]),pack(sig[1]))
 
     # return
     return {
         'outputs': (dumps(new_petition),dumps(new_list)),
-        'extra_parameters' : (packed_sig, pack(kappa), pack(nu), pack(zeta), pet_pack(pi_petition))
+        'extra_parameters' : (packed_sig, pack(kappa), pack(nu), pack(zeta), pet_pack(pi_petition), 
+            pet_pack(enc_v), pet_pack(cv), pet_pack(pi_vote))
     }
 
 
@@ -144,10 +152,12 @@ def create_petition_checker(inputs, reference_inputs, parameters, outputs, retur
         if len(options) < 1 or len(options) != len(scores): return False
 
         # check initalised scores
-        if not all(init_score==0 for init_score in scores): return False
+        pet_params = pet_setup()
+        (G, g, hs, o) = pet_params
+        zero = (G.infinite(), G.infinite())
+        if not all(init_score==pet_pack(zero) for init_score in scores): return False
 
         # verify signature
-        pet_params = pet_setup()
         hasher = sha256()
         hasher.update(outputs[1].encode('utf8'))
         if not do_ecdsa_verify(pet_params[0], pub_owner, sig, hasher.digest()): return False
@@ -177,13 +187,15 @@ def sign_checker(inputs, reference_inputs, parameters, outputs, returns, depende
         new_list = loads(outputs[1])
         # retrieve parameters
         bp_params = setup()
-        new_values = loads(parameters[0])
-        packed_sig = parameters[1]
+        packed_sig = parameters[0]
         sig = (unpackG1(bp_params, packed_sig[0]), unpackG1(bp_params, packed_sig[1]))
-        kappa = unpackG2(bp_params, parameters[2])
-        nu = unpackG1(bp_params, parameters[3])
-        zeta = unpackG1(bp_params, parameters[4])
-        pi_petition = pet_unpack(parameters[5])
+        kappa = unpackG2(bp_params, parameters[1])
+        nu = unpackG1(bp_params, parameters[2])
+        zeta = unpackG1(bp_params, parameters[3])
+        pi_petition = pet_unpack(parameters[4])
+        enc_v = pet_unpack(parameters[5])
+        cv = pet_unpack(parameters[6])
+        pi_vote = pet_unpack(parameters[7])
         
         # check format
         if len(inputs) != 2 or len(reference_inputs) != 0 or len(outputs) != 2 or len(returns) != 0:
@@ -202,21 +214,31 @@ def sign_checker(inputs, reference_inputs, parameters, outputs, returns, depende
         if len(old_petition['options']) != len(new_petition['options']): return False
         if old_petition['verifier'] != new_petition['verifier']: return False
 
-        # check new values
-        if sum(new_values) != 1: return False
-        for i in range(len(scores)):
-            if scores[i] != old_petition['scores'][i] + new_values[i]: return False
-            if new_values[i] != 0 and new_values[i] != 1: return False
+        # re-compute opposite of vote encryption
+        pet_params = pet_setup()
+        (G, g, hs, o) = pet_params
+        (a, b) = enc_v
+        enc_v_not = (-a, -b + hs[0])
 
-        # check spent list
-        packed_zeta = parameters[4]
+        # check homomorphic add
+        old_enc_v = pet_unpack(old_petition['scores'][0])
+        old_enc_v_not = pet_unpack(old_petition['scores'][1])
+        new_enc_v = (old_enc_v[0] + enc_v[0], old_enc_v[1] + enc_v[1])
+        new_enc_v_not = (old_enc_v_not[0] + enc_v_not[0], old_enc_v_not[1] + enc_v_not[1])
+        if not new_petition['scores'] == [pet_pack(new_enc_v), pet_pack(new_enc_v_not)]: return False
+
+        # check new values
+        pub_owner = pet_unpack(old_petition['owner'])
+        if not  verify_proof_vote_petition(pet_params, enc_v, pub_owner, cv, pi_vote): return False
+
+        # check double-voting list
+        packed_zeta = parameters[3]
         if (packed_zeta in old_list['list']) or (new_list['list'] != old_list['list'] + [packed_zeta]):
             return False
         
-
         # verify signature
         aggr_vk = unpack_vk(bp_params, packed_vk)
-        if not verify_proof_petition(bp_params, aggr_vk, sig, kappa, nu, zeta, pi_petition, UUID): return False
+        if not verify_proof_credentials_petition(bp_params, aggr_vk, sig, kappa, nu, zeta, pi_petition, UUID): return False
   
         # otherwise
         return True

@@ -25,19 +25,21 @@ from coconut.scheme import *
 ####################################################################
 # authenticated bank transfer
 ####################################################################
-# crypto parameters
-t, n = 4, 5 # threshold and total numbero of authorities
-bp_params = setup() # bp system's parameters
-(sk, vk) = ttp_keygen(bp_params, t, n, 1) # signers keys
-aggr_vk = aggregate_vk(bp_params, vk, threshold=True)
-
-# petition parameters
+## petition parameters
 UUID = Bn(1234)
 options = ['YES', 'NO']
 pet_params = pet_setup()
 (G, g, hs, o) = pet_params
 priv_owner = o.random()
 pub_owner = priv_owner*g
+
+## authorities parameters
+# coconut parameters
+t, n = 4, 5 # threshold and total numbero of authorities
+bp_params = setup() # bp system's parameters
+(sk, vk) = ttp_keygen(bp_params, t, n, 1) # signers keys
+aggr_vk = aggregate_vk(bp_params, vk, threshold=True)
+# vote parameters
 
 
 class Test(unittest.TestCase):
@@ -112,7 +114,7 @@ class Test(unittest.TestCase):
             old_petition = create_petition_transaction['transaction']['outputs'][1]
             old_list = create_petition_transaction['transaction']['outputs'][2]
 
-            # some crypto
+            # some crypto to get the credentials
             # ------------------------------------
             (d, gamma) = elgamal_keygen(bp_params)
             private_m = [d]
@@ -127,12 +129,12 @@ class Test(unittest.TestCase):
             transaction = petition.sign(
                 (old_petition, old_list),
                 None,
-                (dumps([1, 0]),),
+                None,
                 d,
                 sigma,
-                aggr_vk
+                aggr_vk,
+                1
             )
-
 
             ## submit transaction
             response = requests.post(
