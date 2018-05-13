@@ -22,8 +22,7 @@ from coconut.utils import *
 from coconut.scheme import *
 
 
-####################################################################
-# authenticated bank transfer
+
 ####################################################################
 ## petition parameters
 UUID = Bn(1234) # petition unique id (needed for crypto)
