@@ -10,7 +10,7 @@ The Coconut cryptographic scheme is available [here](https://github.com/asonnino
 
 
 ## Test
-Tests can be run as follows:
+Install the Chainspace Contract Framework as described [here](https://github.com/chainspace); tests can then be run as follows:
 ```
 $ pytest -v tests/
 ```
