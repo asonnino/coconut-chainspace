@@ -35,7 +35,7 @@ pub_owner = priv_owner*g # should be threshold
 ## coconut parameters
 t, n = 4, 5 # threshold and total numbero of authorities
 bp_params = setup() # bp system's parameters
-(sk, vk) = ttp_keygen(bp_params, t, n, 1) # signers keys
+(sk, vk) = ttp_keygen(bp_params, t, n) # signers keys
 aggr_vk = aggregate_vk(bp_params, vk, threshold=True)
 
 

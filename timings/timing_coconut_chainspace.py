@@ -28,7 +28,7 @@ params = setup(q) # system's parameters
 public_m = [1, 2] # messages for plaintext signature
 private_m = [3, 4, 5] # messages for blind signature
 (d, gamma) = elgamal_keygen(params) # user's key pair 
-(sk, vk) = ttp_keygen(params, t, n, q) # signers keys
+(sk, vk) = ttp_keygen(params, t, n) # signers keys
 aggr_vk = aggregate_vk(params, vk, threshold=True)
 
 

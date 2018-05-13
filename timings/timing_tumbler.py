@@ -25,7 +25,7 @@ from chainspacecontract.timings.run import *
 ## coconut parameters
 t, n, q = 4, 5, 3 # threshold parameters
 bp_params = setup(q) # bp system's parameters
-(sk, vk) = ttp_keygen(bp_params, t, n, q) # signers keys
+(sk, vk) = ttp_keygen(bp_params, t, n) # signers keys
 aggr_vk = aggregate_vk(bp_params, vk, threshold=True)
 
 
