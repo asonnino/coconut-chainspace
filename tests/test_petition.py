@@ -5,7 +5,7 @@
 ###################################################################
 # general
 from multiprocessing import Process
-from json            import dumps, loads
+from json import dumps, loads
 import time
 import unittest
 import requests
