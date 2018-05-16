@@ -10,7 +10,7 @@ The Coconut cryptographic scheme is available [here](https://github.com/asonnino
 
 
 ## Pre-requisites
-Install the Chainspace Contract Framework as described [here](https://github.com/chainspace), and **Coconut** as described [here](https://github.com/asonnino/coconut)
+Install the Chainspace Contract Framework as described [here](https://github.com/chainspace), and Coconut as described [here](https://github.com/asonnino/coconut#install)
 
 ## Test
 Tests can then be run as follows:
