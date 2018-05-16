@@ -23,14 +23,19 @@ from chainspacecontract.timings.run import *
 ####################################################################
 ## petition parameters
 UUID = Bn(1234) # petition unique id (needed for crypto)
-options = ['YES', 'NO'] # options 
+options = ['YES', 'NO']
+# petition owner parameters
 pet_params = pet_setup()
 (G, g, hs, o) = pet_params
-priv_owner = o.random() # should be threshold
-pub_owner = priv_owner*g # should be threshold
+t_owners, n_owners = 2, 3
+v = [o.random() for _ in range(0,t_owners)]
+sk_owners = [poly_eval(v,i) % o for i in range(1,n_owners+1)]
+pk_owners = [xi*g for xi in sk_owners]
+l = [lagrange_basis(t_owners, o, i, 0) for i in range(1,t_owners+1)]
+aggr_pk_owner = ec_sum([l[i]*pk_owners[i] for i in range(t_owners)])
 
 ## coconut parameters
-t, n = 4, 5 # threshold and total numbero of authorities
+t, n = 4, 5 # threshold and total number of authorities
 bp_params = setup() # bp system's parameters
 (sk, vk) = ttp_keygen(bp_params, t, n) # signers keys
 aggr_vk = aggregate_vk(bp_params, vk, threshold=True)
@@ -50,8 +55,10 @@ create_petition_tx = petition.create_petition(
     None,
     UUID,
     options,
-    priv_owner,
-    pub_owner,
+    sk_owners[0],
+    aggr_pk_owner,
+    t_owners,
+    n_owners,
     aggr_vk
 )
 old_petition = create_petition_tx['transaction']['outputs'][1]
@@ -82,8 +89,26 @@ tally_tx = petition.tally(
     (old_petition,),
     None,
     None,
-    priv_owner,
-    pub_owner
+    sk_owners[0],
+    0,
+    t_owners
+)
+
+# read transaction
+for i in range(t_owners):
+    tally_tx = petition.tally(
+        (old_petition,),
+        None,
+        None,
+        sk_owners[i],
+        i,
+        t_owners
+    )
+    old_petition = tally_tx['transaction']['outputs'][0]
+read_tx = petition.read(
+    None,
+    (old_petition,),
+    None
 )
 
 
@@ -104,8 +129,10 @@ def main():
         None,
         UUID,
         options,
-        priv_owner,
-        pub_owner,
+        sk_owners[0],
+        aggr_pk_owner,
+        t_owners,
+        n_owners,
         aggr_vk
     )
     
@@ -139,14 +166,29 @@ def main():
         (old_petition,),
         None,
         None,
-        priv_owner,
-        pub_owner
+        sk_owners[0],
+        0,
+        t_owners
     )
     
     # check
     run_checker(RUNS, '[c] tally', 
         petition.contract.checkers['tally'],
         transaction_to_solution(tally_tx)
+    )
+
+    # == read ===============
+    # gen
+    run(RUNS, '[g] read', petition.read, 
+        None,
+        (old_petition,),
+        None
+    )
+    
+    # check
+    run_checker(RUNS, '[c] read', 
+        petition.contract.checkers['read'],
+        transaction_to_solution(read_tx)
     )
 
     
