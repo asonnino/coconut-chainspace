@@ -298,7 +298,7 @@ def sign_checker(inputs, reference_inputs, parameters, outputs, returns, depende
         if (packed_zeta in old_list['list']) or (new_list['list'] != old_list['list'] + [packed_zeta]):
             return False
         
-        # verify signature
+        # verify coconut credentials
         aggr_vk = unpack(packed_vk)
         if not verify_proof_credentials_petition(bp_params, aggr_vk, sig, kappa, nu, zeta, pi_petition, UUID): 
             return False
