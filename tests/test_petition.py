@@ -26,14 +26,19 @@ from coconut.scheme import *
 ####################################################################
 ## petition parameters
 UUID = Bn(1234) # petition unique id (needed for crypto)
-options = ['YES', 'NO'] # options 
+options = ['YES', 'NO']
+# petition owner parameters
 pet_params = pet_setup()
 (G, g, hs, o) = pet_params
-priv_owner = o.random() # should be threshold
-pub_owner = priv_owner*g # should be threshold
+t_owners, n_owners = 2, 3
+v = [o.random() for _ in range(0,t_owners)]
+sk_owners = [poly_eval(v,i) % o for i in range(1,n_owners+1)]
+pk_owner = [xi*g for xi in sk_owners]
+l = [lagrange_basis(t_owners, o, i, 0) for i in range(1,t_owners+1)]
+aggr_pk_owner = ec_sum([l[i]*pk_owner[i] for i in range(t_owners)])
 
 ## coconut parameters
-t, n = 4, 5 # threshold and total numbero of authorities
+t, n = 4, 5 # threshold and total number of authorities
 bp_params = setup() # bp system's parameters
 (sk, vk) = ttp_keygen(bp_params, t, n) # signers keys
 aggr_vk = aggregate_vk(bp_params, vk, threshold=True)
@@ -75,8 +80,10 @@ class Test(unittest.TestCase):
                 None,
                 UUID,
                 options,
-                priv_owner,
-                pub_owner,
+                sk_owners[0],
+                aggr_pk_owner,
+                t_owners,
+                n_owners,
                 aggr_vk
             )
 
@@ -105,8 +112,10 @@ class Test(unittest.TestCase):
                 None,
                 UUID,
                 options,
-                priv_owner,
-                pub_owner,
+                sk_owners[0],
+                aggr_pk_owner,
+                t_owners,
+                n_owners,
                 aggr_vk
             )
             old_petition = create_petition_transaction['transaction']['outputs'][1]
@@ -159,8 +168,10 @@ class Test(unittest.TestCase):
                 None,
                 UUID,
                 options,
-                priv_owner,
-                pub_owner,
+                sk_owners[0],
+                aggr_pk_owner,
+                t_owners,
+                n_owners,
                 aggr_vk
             )
             old_petition = create_petition_transaction['transaction']['outputs'][1]
@@ -186,19 +197,22 @@ class Test(unittest.TestCase):
                     d,
                     sigma,
                     aggr_vk,
-                    1
+                    1 # vote
                 )
                 old_petition = sign_transaction['transaction']['outputs'][0]
                 old_list = sign_transaction['transaction']['outputs'][1]
 
             # tally
-            transaction = petition.tally(
-                (old_petition,),
-                None,
-                None,
-                priv_owner,
-                pub_owner
-            )
+            for i in range(t_owners):
+                transaction = petition.tally(
+                    (old_petition,),
+                    None,
+                    None,
+                    sk_owners[i],
+                    i,
+                    t_owners
+                )
+                old_petition = transaction['transaction']['outputs'][0]
 
             ## submit transaction
             response = requests.post(
@@ -207,9 +221,88 @@ class Test(unittest.TestCase):
             )
             self.assertTrue(response.json()['success'])
 
-            print("\n\n=================== VERIFICATION ===================\n")
-            print('OUTCOME: ', loads(transaction['transaction']['outputs'][0])['outcome'])
-            print("\n====================================================\n\n")
+
+    # --------------------------------------------------------------
+    # test read
+    # --------------------------------------------------------------
+    def test_read(self):
+        with petition_contract.test_service():
+            # create transaction
+            # init
+            init_transaction = petition.init()
+            token = init_transaction['transaction']['outputs'][0]
+
+            # initialise petition
+            create_petition_transaction = petition.create_petition(
+                (token,),
+                None,
+                None,
+                UUID,
+                options,
+                sk_owners[0],
+                aggr_pk_owner,
+                t_owners,
+                n_owners,
+                aggr_vk
+            )
+            old_petition = create_petition_transaction['transaction']['outputs'][1]
+            old_list = create_petition_transaction['transaction']['outputs'][2]
+
+            # add signature to the petition
+            for i in range(3):
+                # some crypto to get the credentials
+                # ------------------------------------
+                (d, gamma) = elgamal_keygen(bp_params)
+                private_m = [d]
+                (cm, c, pi_s) = prepare_blind_sign(bp_params, gamma, private_m)
+                sigs_tilde = [blind_sign(bp_params, ski, cm, c, gamma, pi_s) for ski in sk]
+                sigs = [unblind(bp_params, sigma_tilde, d) for sigma_tilde in sigs_tilde]
+                sigma = aggregate_sigma(bp_params, sigs)
+                sigma = randomize(bp_params, sigma)
+                # ------------------------------------
+
+                sign_transaction = petition.sign(
+                    (old_petition, old_list),
+                    None,
+                    None,
+                    d,
+                    sigma,
+                    aggr_vk,
+                    1 # vote
+                )
+                old_petition = sign_transaction['transaction']['outputs'][0]
+                old_list = sign_transaction['transaction']['outputs'][1]
+
+            # tally
+            for i in range(t_owners):
+                transaction = petition.tally(
+                    (old_petition,),
+                    None,
+                    None,
+                    sk_owners[i],
+                    i,
+                    t_owners
+                )
+                old_petition = transaction['transaction']['outputs'][0]
+
+
+            # read
+            transaction = petition.read(
+                None,
+                (old_petition,),
+                None
+            )
+
+            ## submit transaction
+            response = requests.post(
+                'http://127.0.0.1:5000/' + petition_contract.contract_name 
+                + '/read', json=transaction_to_solution(transaction)
+            )
+            self.assertTrue(response.json()['success'])
+
+            print("\n\n==================== OUTCOME ====================\n")
+            print('OUTCOME: ', loads(transaction['transaction']['returns'][0]))
+            print("\n===================================================\n\n")
 
    
 ####################################################################

@@ -37,7 +37,6 @@ def make_proof_credentials_petition(params, aggr_vk, sigma, private_m, UUID):
 	## output
 	return (kappa, nu, zeta, pi_petition)
 
-
 def verify_proof_credentials_petition(params, aggr_vk, sigma, kappa, nu, zeta, pi_petition, UUID, public_m=[]):
 	""" verify petition signature """
 	(G, o, g1, hs, g2, e) = params
@@ -92,7 +91,6 @@ def make_proof_vote_petition(params, pub, m):
 	Cw = wm*g + wr1*hs[0]
 	Dw = wm*cv + wr2*hs[0]
 	# create the challenge
-	
 	c = to_challenge([g, hs[0], a, b, cv, Aw, Bw, Cw, Dw])
 	# create responses
 	rk = (wk - c*k) % o
@@ -103,7 +101,6 @@ def make_proof_vote_petition(params, pub, m):
 
 	## output
 	return (enc_v, enc_v_not, cv, pi_vote)
-
 
 def verify_proof_vote_petition(params, enc_v, pub, cv, pi_vote):
 	""" verify vote correctness """
@@ -119,7 +116,27 @@ def verify_proof_vote_petition(params, enc_v, pub, cv, pi_vote):
 	return c == to_challenge([g, hs[0], a, b, cv, Aw, Bw, Cw, Dw])
 
 
+def make_proof_tally_petition(params, li, enc_results, priv):
+	""" make proof of correct tally """
+	(G, g, hs, o) = params
+	# create the witnesses
+	wx = o.random()
+	# compute the witnesses commitments
+	Aw = [(-wx*li*enc[0]) for enc in enc_results]
+	# create the challenge
+	c = to_challenge([g, hs[0]]+Aw)
+	# create responses
+	rx = (wx - c*priv) % o
+	return (c, rx)
 
+def verify_proof_tally_petition(params, li, enc_results, pi_dec, eta):
+	""" verify proof of correct tally """
+	(G, g, hs, o) = params
+	(c, rx) = pi_dec
+	# re-compute witnesses commitment
+	Aw = [-rx*li*enc_results[i][0] + c*eta[i] for i in range(len(enc_results))]
+	# verify challenge
+	return c == to_challenge([g, hs[0]]+Aw)
 
 
 
