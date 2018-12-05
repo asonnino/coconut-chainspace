@@ -29,7 +29,7 @@ public_m = [1, 2] # messages for plaintext signature
 private_m = [3, 4, 5] # messages for blind signature
 (d, gamma) = elgamal_keygen(params) # user's key pair 
 (sk, vk) = ttp_keygen(params, t, n) # signers keys
-aggr_vk = aggregate_vk(params, vk, threshold=True)
+aggr_vk = agg_key(params, vk, threshold=True)
 
 
 ####################################################################
@@ -67,22 +67,20 @@ coco_request = request_tx['transaction']['outputs'][1]
 issue_tx = coconut_chainspace.issue(
     (coco_request,),
     None,
-    None,
-    sk[0],
-    0
+    (0,),
+    sk[0]
 )
 
 ## verify
-(cm, c, pi_s) = prepare_blind_sign(params, gamma, private_m, public_m=public_m)
-sigs_tilde = [blind_sign(params, ski, cm, c, gamma, pi_s, public_m=public_m) for ski in sk]
+Lambda = prepare_blind_sign(params, gamma, private_m, public_m=public_m)
+sigs_tilde = [blind_sign(params, ski, gamma, Lambda, public_m=public_m) for ski in sk]
 sigs = [unblind(params, sigma_tilde, d) for sigma_tilde in sigs_tilde]
-sigma = aggregate_sigma(params, sigs)
-sigma = randomize(params, sigma)
+sigma = agg_cred(params, sigs)
 verify_tx = coconut_chainspace.verify(
     None,
     (instance,),
-    (pack(sigma),),
-    public_m,
+    (dumps(public_m),),
+    sigma,
     private_m
 )     
 
@@ -136,9 +134,8 @@ def main():
     run(RUNS, '[g] issue', coconut_chainspace.issue, 
         (coco_request,),
         None,
-        None,
-        sk[0],
-        0
+        (0,),
+        sk[0]
     )
     # check
     run_checker(RUNS, '[c] issue', 
@@ -151,8 +148,8 @@ def main():
     run(RUNS, '[g] verify', coconut_chainspace.verify, 
         None,
         (instance,),
-        (pack(sigma),),
-        public_m,
+        (dumps(public_m),),
+        sigma,
         private_m
     )
     # check
