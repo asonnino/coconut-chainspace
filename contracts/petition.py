@@ -68,7 +68,7 @@ def create_petition(inputs, reference_inputs, parameters, UUID, options, priv_ow
         'list' : []
     }
 
-    # signature: ideally, this should be be signed by the owners
+    # signature: this should be be signed by the owners
     #hasher = sha256()
     #hasher.update(dumps(new_petition).encode('utf8'))
     #sig = do_ecdsa_sign(pet_params[0], priv_owner, hasher.digest())
@@ -131,7 +131,7 @@ def tally(inputs, reference_inputs, parameters, tally_priv, index, t_owners):
     # decrypt results
     pet_params = pet_setup()
     (G, g, hs, o) = pet_params
-    l = [lagrange_basis(t_owners, o, i, 0) for i in range(1,t_owners+1)]
+    l = lagrange_basis(range(1,t_owners+1), o, 0)
     dec_share = [(-tally_priv*l[index]*enc[0]) for enc in enc_results]
     petition['dec'].append(pack(dec_share))
 
@@ -345,7 +345,7 @@ def tally_checker(inputs, reference_inputs, parameters, outputs, returns, depend
         (G, g, hs, o) = pet_params
         enc_results = [unpack(old_petition['scores'][0]), unpack(old_petition['scores'][1])]
         t_owners = new_petition['t_owners']
-        l = [lagrange_basis(t_owners, o, i, 0) for i in range(1,t_owners+1)]
+        l = lagrange_basis(range(1,t_owners+1), o, 0)
         if not verify_proof_tally_petition(pet_params, l[index], enc_results, pi_tally, dec_share): return False
 
         # otherwise

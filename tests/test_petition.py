@@ -34,14 +34,15 @@ t_owners, n_owners = 2, 3
 v = [o.random() for _ in range(0,t_owners)]
 sk_owners = [poly_eval(v,i) % o for i in range(1,n_owners+1)]
 pk_owner = [xi*g for xi in sk_owners]
-l = [lagrange_basis(t_owners, o, i, 0) for i in range(1,t_owners+1)]
+#l = [lagrange_basis(t_owners, o, i, 0) for i in range(1,t_owners+1)]
+l = lagrange_basis(range(1,t_owners+1), o, 0)
 aggr_pk_owner = ec_sum([l[i]*pk_owner[i] for i in range(t_owners)])
 
 ## coconut parameters
 t, n = 4, 5 # threshold and total number of authorities
 bp_params = setup() # bp system's parameters
 (sk, vk) = ttp_keygen(bp_params, t, n) # signers keys
-aggr_vk = aggregate_vk(bp_params, vk, threshold=True)
+aggr_vk = agg_key(bp_params, vk, threshold=True)
 
 
 
@@ -125,11 +126,10 @@ class Test(unittest.TestCase):
             # ------------------------------------
             (d, gamma) = elgamal_keygen(bp_params)
             private_m = [d]
-            (cm, c, pi_s) = prepare_blind_sign(bp_params, gamma, private_m)
-            sigs_tilde = [blind_sign(bp_params, ski, cm, c, gamma, pi_s) for ski in sk]
+            Lambda = prepare_blind_sign(bp_params, gamma, private_m)
+            sigs_tilde = [blind_sign(bp_params, ski, gamma, Lambda) for ski in sk]
             sigs = [unblind(bp_params, sigma_tilde, d) for sigma_tilde in sigs_tilde]
-            sigma = aggregate_sigma(bp_params, sigs)
-            sigma = randomize(bp_params, sigma)
+            sigma = agg_cred(bp_params, sigs)
             # ------------------------------------
 
             # add signature to th petition
@@ -183,11 +183,10 @@ class Test(unittest.TestCase):
                 # ------------------------------------
                 (d, gamma) = elgamal_keygen(bp_params)
                 private_m = [d]
-                (cm, c, pi_s) = prepare_blind_sign(bp_params, gamma, private_m)
-                sigs_tilde = [blind_sign(bp_params, ski, cm, c, gamma, pi_s) for ski in sk]
+                Lambda = prepare_blind_sign(bp_params, gamma, private_m)
+                sigs_tilde = [blind_sign(bp_params, ski, gamma, Lambda) for ski in sk]
                 sigs = [unblind(bp_params, sigma_tilde, d) for sigma_tilde in sigs_tilde]
-                sigma = aggregate_sigma(bp_params, sigs)
-                sigma = randomize(bp_params, sigma)
+                sigma = agg_cred(bp_params, sigs)
                 # ------------------------------------
 
                 sign_transaction = petition.sign(
@@ -254,11 +253,10 @@ class Test(unittest.TestCase):
                 # ------------------------------------
                 (d, gamma) = elgamal_keygen(bp_params)
                 private_m = [d]
-                (cm, c, pi_s) = prepare_blind_sign(bp_params, gamma, private_m)
-                sigs_tilde = [blind_sign(bp_params, ski, cm, c, gamma, pi_s) for ski in sk]
+                Lambda = prepare_blind_sign(bp_params, gamma, private_m)
+                sigs_tilde = [blind_sign(bp_params, ski, gamma, Lambda) for ski in sk]
                 sigs = [unblind(bp_params, sigma_tilde, d) for sigma_tilde in sigs_tilde]
-                sigma = aggregate_sigma(bp_params, sigs)
-                sigma = randomize(bp_params, sigma)
+                sigma = agg_cred(bp_params, sigs)
                 # ------------------------------------
 
                 sign_transaction = petition.sign(

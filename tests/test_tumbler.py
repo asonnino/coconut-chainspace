@@ -31,7 +31,7 @@ from coconut.scheme import *
 t, n, q = 4, 5, 3 # threshold parameters
 bp_params = setup(q) # bp system's parameters
 (sk, vk) = ttp_keygen(bp_params, t, n) # signers keys
-aggr_vk = aggregate_vk(bp_params, vk, threshold=True)
+aggr_vk = agg_key(bp_params, vk, threshold=True)
 
 
 
@@ -103,11 +103,10 @@ class Test(unittest.TestCase):
             addr = 100 # merchant address
             (d, gamma) = elgamal_keygen(bp_params)
             private_m = [ID, addr]
-            (cm, c, pi_s) = prepare_blind_sign(bp_params, gamma, private_m)
-            sigs_tilde = [blind_sign(bp_params, ski, cm, c, gamma, pi_s) for ski in sk]
+            Lambda = prepare_blind_sign(bp_params, gamma, private_m)
+            sigs_tilde = [blind_sign(bp_params, ski, gamma, Lambda) for ski in sk]
             sigs = [unblind(bp_params, sigma_tilde, d) for sigma_tilde in sigs_tilde]
-            sigma = aggregate_sigma(bp_params, sigs)
-            sigma = randomize(bp_params, sigma)
+            sigma = agg_cred(bp_params, sigs)
             # ------------------------------------
 
             # add signature to th petition

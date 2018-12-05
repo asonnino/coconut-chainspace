@@ -14,4 +14,6 @@ def pack(x):
     return hexlify(encode(x))
 
 def unpack(x):
+    if x is None:
+        return x 
     return decode(unhexlify(x))

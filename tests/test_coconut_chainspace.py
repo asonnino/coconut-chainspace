@@ -1,4 +1,4 @@
-""" test authenticated bank transfer """
+""" test Coconut smart contract library """
 
 ####################################################################
 # imports
@@ -33,7 +33,7 @@ public_m = [1, 2] # messages for plaintext signature
 private_m = [3, 4, 5] # messages for blind signature
 (d, gamma) = elgamal_keygen(params) # user's key pair 
 (sk, vk) = ttp_keygen(params, t, n) # signers keys
-aggr_vk = aggregate_vk(params, vk, threshold=True)
+aggr_vk = agg_key(params, vk, threshold=True)
 
 
 
@@ -151,13 +151,12 @@ class Test(unittest.TestCase):
             )
             old_request = request_transaction['transaction']['outputs'][1]
 
-            # issue a signatures
+            # issue a credential
             transaction = coconut_chainspace.issue(
                 (old_request,),
                 None,
-                None,
-                sk[0],
-                0
+                (0,),
+                sk[0]
             )
             old_request = transaction['transaction']['outputs'][0]
 
@@ -168,29 +167,25 @@ class Test(unittest.TestCase):
             )
             self.assertTrue(response.json()['success'])
 
-            # issue the other t-1 signatures
-            for i in range(1,t):
+            # issue the other credential
+            for i in range(1,n):
                 transaction = coconut_chainspace.issue(
                     (old_request,),
                     None,
-                    None,
-                    sk[i],
-                    i
+                    (i,),
+                    sk[i]
                 )
                 old_request = transaction['transaction']['outputs'][0]
 
             # some crypto - to show that this actually works
             # ------------------------------------
-            packet = loads(old_request)['sigs']
-            (indexes, packed_sigma_tilde) = zip(*packet)
-            sigma_tilde = [unpack(x) for x in packed_sigma_tilde]
-            (h, enc_s) = zip(*sigma_tilde)
-            dec_sigs = [(h[0], elgamal_dec(params, d, enc)) for enc in enc_s]
-            aggr_sigma = aggregate_sigma(params, dec_sigs)
-            aggr_sigma = randomize(params, aggr_sigma)
-            (kappa, nu, pi_v) = show_blind_sign(params, aggr_vk, aggr_sigma, private_m)
+            packed_sigs_tilde = loads(old_request)['sigs']
+            sigs_tilde = [unpack(x) for x in packed_sigs_tilde]
+            sigs = [unblind(params, sigma_tilde, d) for sigma_tilde in sigs_tilde]
+            aggr_sigma = agg_cred(params, sigs)
+            Theta = prove_cred(params, aggr_vk, aggr_sigma, private_m)
             print("\n\n=================== VERIFICATION ===================\n")
-            print(blind_verify(params, aggr_vk, aggr_sigma, kappa, nu, pi_v, public_m=public_m))
+            print(verify_cred(params, aggr_vk, Theta, public_m=public_m))
             print("\n====================================================\n\n")
             # ------------------------------------
 
@@ -226,13 +221,12 @@ class Test(unittest.TestCase):
             )
             old_request = request_transaction['transaction']['outputs'][1]
 
-            # issue a signatures
+            # issue a credentials
             transaction = coconut_chainspace.issue(
                 (old_request,),
                 None,
-                None,
-                sk[0],
-                0
+                (0,),
+                sk[0]
             )
             old_request = transaction['transaction']['outputs'][0]
 
@@ -243,34 +237,30 @@ class Test(unittest.TestCase):
             )
             self.assertTrue(response.json()['success'])
 
-            # issue the other t-1 signatures
-            for i in range(1,t):
+            # issue the other credentials
+            for i in range(1,n):
                 transaction = coconut_chainspace.issue(
                     (old_request,),
                     None,
-                    None,
-                    sk[i],
-                    i
+                    (i,),
+                    sk[i]
                 )
                 old_request = transaction['transaction']['outputs'][0]
 
             # some crypto - to show that this actually works
             # ------------------------------------
-            packet = loads(old_request)['sigs']
-            (indexes, packed_sigma_tilde) = zip(*packet)
-            sigma_tilde = [unpack(x) for x in packed_sigma_tilde]
-            (h, enc_s) = zip(*sigma_tilde)
-            dec_sigs = [(h[0], elgamal_dec(params, d, enc)) for enc in enc_s]
-            aggr_sigma = aggregate_sigma(params, dec_sigs)
-            aggr_sigma = randomize(params, aggr_sigma)
+            packed_sigs_tilde = loads(old_request)['sigs']
+            sigs_tilde = [unpack(x) for x in packed_sigs_tilde]
+            sigs = [unblind(params, sigma_tilde, d) for sigma_tilde in sigs_tilde]
+            aggr_sigma = agg_cred(params, sigs)
             # ------------------------------------
 
             # verify signature
             transaction = coconut_chainspace.verify(
                 None,
                 (instance,),
-                (pack(aggr_sigma),),
-                public_m,
+                (dumps(public_m),),
+                aggr_sigma,
                 private_m
             )
 
@@ -284,7 +274,7 @@ class Test(unittest.TestCase):
             print("\n\n=================== VERIFICATION ===================\n")
             print(transaction['transaction']['returns'][0])
             print("\n====================================================\n\n")
-    
+
 
 ####################################################################
 # main
