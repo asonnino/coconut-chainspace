@@ -65,7 +65,7 @@ def redeem(inputs, reference_inputs, parameters, sig, vk, ID):
 
     # proof
     bp_params = setup(2)
-    (kappa, nu, zeta, pi_tumbler) = make_proof_tumbler(bp_params, vk, sig, ID, addr)
+    (kappa, nu, sigma, zeta, pi_tumbler) = make_proof_tumbler(bp_params, vk, sig, ID, addr)
     #assert verify_proof_tumbler(bp_params, vk, sig, kappa, nu, zeta, pi_tumbler, addr)
 
     # update spent list
@@ -74,7 +74,7 @@ def redeem(inputs, reference_inputs, parameters, sig, vk, ID):
     # return
     return {
         'outputs': (dumps(new_list),),
-        'extra_parameters' : (pack(sig), pack(kappa), pack(nu), pack(zeta), pack(pi_tumbler))
+        'extra_parameters' : (pack(sigma), pack(kappa), pack(nu), pack(zeta), pack(pi_tumbler))
     }
 
 

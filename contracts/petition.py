@@ -93,7 +93,7 @@ def sign(inputs, reference_inputs, parameters, priv_signer, sig, aggr_vk, vote):
     # prepare showing of credentials
     UUID = unpack(old_petition['UUID'])
     bp_params = setup()
-    (kappa, nu, zeta, pi_petition) = make_proof_credentials_petition(bp_params, aggr_vk, sig, [priv_signer], UUID)
+    (kappa, nu, sigma, zeta, pi_petition) = make_proof_credentials_petition(bp_params, aggr_vk, sig, [priv_signer], UUID)
     #assert verify_proof_credentials_petition(bp_params, aggr_vk, sig, kappa, nu, zeta, pi_petition, UUID)
 
     # update spent list
@@ -115,7 +115,7 @@ def sign(inputs, reference_inputs, parameters, priv_signer, sig, aggr_vk, vote):
     # return
     return {
         'outputs': (dumps(new_petition),dumps(new_list)),
-        'extra_parameters' : (pack(sig), pack(kappa), pack(nu), pack(zeta), pack(pi_petition), 
+        'extra_parameters' : (pack(sigma), pack(kappa), pack(nu), pack(zeta), pack(pi_petition), 
             pack(enc_v), pack(cv), pack(pi_vote))
     }
 
